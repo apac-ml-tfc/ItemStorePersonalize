@@ -183,16 +183,24 @@ class App extends Component<RouteComponentProps<AppProps>, AppState> {
                     userId={this.state.selectedUser?.id}
                   ></RecommendationList>
                 </div>
-                <div class="row" style="padding-top:20px">
-                  <div role="alert" class="alert alert-info">This demo is based on minimally pre-processed (to reduce size) <span style="font-weight:bold";> Per-category product review data </span> as used in:</br>
-                  <span style="font-weight:bold;">"Justifying recommendations using distantly-labeled reviews and fined-grained aspects"</span></br>
-                  <span style="font-style:italic;">Jianmo Ni, Jiacheng Li, Julian McAuley</span> </br> <span style="font-style:italic;">Empirical Methods in Natural Language Processing (EMNLP), 2019</span></br>
-                  ...and published <a href="https://nijianmo.github.io/amazon/index.html">online here</a>.</div>
-                </div>
               </Route>
               <Route path="*" component={notFound} />
             </Switch>
         </Router>
+
+        <div className="row attribution-row">
+          <div className="col-xs-12">
+            <hr/>
+            <p>This demo is based on minimally pre-processed (to reduce size) per-category Amazon.com product review data as used in:</p>
+            <p className="citation">
+              <span style={{ fontWeight: "bold" }}>"Justifying recommendations using distantly-labeled reviews and fined-grained aspects"</span>
+              <br/>Jianmo Ni, Jiacheng Li, Julian McAuley
+              <br/>Empirical Methods in Natural Language Processing (EMNLP), 2019
+              <br/>
+            </p>
+            <p>...and published <a href="https://nijianmo.github.io/amazon/index.html">online here</a>.</p>
+          </div>
+        </div>
       </div>);
   }
 }

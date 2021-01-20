@@ -56,3 +56,13 @@
     }
   }
 }
+
+.attribution-row {
+  color: #777;
+  padding-top: $global-margin * 4;
+  padding-bottom: $global-margin;
+
+  .citation {
+    font-style: italic;
+  }
+}
