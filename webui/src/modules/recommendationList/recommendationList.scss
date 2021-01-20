@@ -2,8 +2,10 @@
 
 .similar {
   max-width: 100%;
-  overflow-x: scroll;
-  overflow: -moz-scrollbars-horizontal;
+
+  .testimonial-group {
+    max-width: 100%;
+  }
 }
 
 .similar span {
@@ -12,7 +14,22 @@
 
 .itemsForUser {
   max-width: 100%;
-  overflow-x: scroll;
-  overflow: -moz-scrollbars-horizontal;
+
+  .testimonial-group {
+    max-width: 100%;
+  }
   padding-bottom: 20px;
+}
+
+.testimonial-group {
+  >.row {
+    overflow-x: auto;
+    overflow: -moz-scrollbars-horizontal;
+    white-space: nowrap;
+
+    >.col-xs-12 {
+      display: inline-block;
+      float: none;
+    }
+  }
 }

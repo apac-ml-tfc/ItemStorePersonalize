@@ -136,14 +136,12 @@ class ProductDetails extends React.Component<RouteComponentProps<ProductDetailsP
         let recommendedForUser;
         if (uid !== null) {
           recommendedForUser = (
-            <div className="itemsForUser">
+            <div className="related-section">
               <h3>Recommended For You</h3>
-              <div>
-                <RecommendationList
-                  mode="ItemsForUser"
-                  userId={uid?.toString()}
-                ></RecommendationList>
-              </div>
+              <RecommendationList
+                mode="ItemsForUser"
+                userId={uid?.toString()}
+              ></RecommendationList>
             </div>
           );
         }
@@ -168,12 +166,12 @@ class ProductDetails extends React.Component<RouteComponentProps<ProductDetailsP
         );
 
         return (
-          <div>
+          <div className="col-xs-12">
             <table className="productDetail" key={item.asin}>
               <tbody>
                 <tr>
                   <td>
-                    <img src={item.imUrl}></img>
+                    <img src={item.imUrl} alt="Product"></img>
                   </td>
                   <td>
                     <b>{htmlEntities.decode(item.title)}</b>
@@ -186,22 +184,20 @@ class ProductDetails extends React.Component<RouteComponentProps<ProductDetailsP
                 {amazonLinkContent}
               </tbody>
             </table>
-            <div className="similar">
+            <div className="related-section">
               <h3>Similar Items</h3>
-              <div>
-                  <RecommendationList
-                  mode="SimilarItems"
-                  userId={uid?.toString()}
-                  productId={item.asin}
-                  ></RecommendationList>
-              </div>
+              <RecommendationList
+              mode="SimilarItems"
+              userId={uid?.toString()}
+              productId={item.asin}
+              ></RecommendationList>
             </div>
             {recommendedForUser}
           </div>
         );
       } else {
         return (
-          <div>
+          <div className="col-xs-12">
             <Alert bsStyle="danger">
               <i className="glyphicon glyphicon-exclamation-sign"></i>{" "}
               Failed to load product

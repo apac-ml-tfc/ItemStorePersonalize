@@ -45,18 +45,6 @@
   margin-top: 20px;
 }
 
-.testimonial-group {
-  >.row {
-    overflow-x: auto;
-    white-space: nowrap;
-
-    >.col-xs-12 {
-      display: inline-block;
-      float: none;
-    }
-  }
-}
-
 .attribution-row {
   color: #777;
   padding-top: $global-margin * 4;
