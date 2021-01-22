@@ -441,6 +441,13 @@ Resources:
           Properties:
             Path: /recommendations/{userid}
             Method: get
+  FunctionGetRecommendationsParam:  # Expose the GetRecs function address to SageMaker notebooks:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub 'ARN of the GetRecommendations Lambda for "${AWS::StackName}" stack'
+      Name: !Sub '/${ProjectName}/GetRecommendationsLambdaArn'
+      Type: String
+      Value: !GetAtt FunctionGetRecommendations.Arn
   FunctionGetRecommendationsByItem:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -466,6 +473,13 @@ Resources:
           Properties:
             Path: /recommendationsitem/{itemid}
             Method: get
+  FunctionGetRecommendationsByItemParam:  # Expose the GetRecsByItem function address to SageMaker notebooks:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub 'ARN of the GetRecommendationsByItem Lambda for "${AWS::StackName}" stack'
+      Name: !Sub '/${ProjectName}/GetRecommendationsByItemLambdaArn'
+      Type: String
+      Value: !GetAtt FunctionGetRecommendationsByItem.Arn
   FunctionSession:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -540,6 +554,13 @@ Resources:
           Properties:
             Path: /search
             Method: get
+  FunctionSearchRerankParam:  # Expose the SearchRerank function address to SageMaker notebooks:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub 'ARN of the SearchRerank Lambda for "${AWS::StackName}" stack'
+      Name: !Sub '/${ProjectName}/SearchRerankLambdaArn'
+      Type: String
+      Value: !GetAtt FunctionSearchRerank.Arn
 
 
 # ------- CLOUDFRONT DISTRIBUTION -------
@@ -661,53 +682,130 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub '${ProjectName}-staging'
+  StagingBucketParam:  # Expose the Staging Bucket to SageMaker notebooks via SSM
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub 'Name of the Staging Bucket for "${AWS::StackName}" stack'
+      Name: !Sub '/${ProjectName}/StagingBucket'
+      Type: String
+      Value: !Ref StagingS3Bucket
+
+  SageMakerExecutionPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: !Sub 'Permissions needed for a SageMaker execution role to run the setup notebooks on ${ProjectName}'
+      Path: !Sub '/${ProjectName}/'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: CloudWatchMetrics  # As per AmazonPersonalizeFullAccess
+            Effect: Allow
+            Action:
+              - 'cloudwatch:PutMetricData'
+              - 'cloudwatch:ListMetrics'
+            Resource:
+              - '*'
+          - Sid: StackDynamoDB
+            Effect: Allow
+            Action:
+              - 'dynamodb:PutItem'
+              - 'dynamodb:Query'
+              - 'dynamodb:UpdateTable'
+              - 'dynamodb:UpdateItem'
+              - 'dynamodb:BatchWriteItem'
+              - 'dynamodb:GetItem'
+              - 'dynamodb:Scan'
+              - 'dynamodb:DeleteItem'
+            Resource:
+              - !GetAtt TableItems.Arn
+              - !Join ['', [!GetAtt TableItems.Arn, '/*']]
+              - !GetAtt TableUsers.Arn
+              - !Join ['', [!GetAtt TableUsers.Arn, '/*']]
+          - Sid: ManagePersonalizeRole  # As per AmazonPersonalizeFullAccess
+            Effect: Allow
+            Action:
+              - 'iam:*'
+            Resource:
+              - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ProjectName}-*'
+          - Sid: PassPersonalizeRole  # As per AmazonPersonalizeFullAccess
+            Effect: Allow
+            Action:
+              - 'iam:PassRole'
+            Resource:
+              - '*'
+            Condition:
+              StringEquals:
+                iam:PassedToService: personalize.amazonaws.com
+          - Sid: UpdateLambdaConfigurations
+            Effect: Allow
+            Action:
+              - 'lambda:GetFunction'
+              - 'lambda:UpdateFunctionConfiguration'
+            Resource:
+              - !GetAtt FunctionGetRecommendations.Arn
+              - !GetAtt FunctionGetRecommendationsByItem.Arn
+              - !GetAtt FunctionSearchRerank.Arn
+              - !GetAtt PostClickEventFunction.Arn
+          - Sid: Personalize
+            Effect: Allow
+            Action:
+              - 'personalize:*'
+            Resource:
+              - '*'  # TODO: Scope down to /${ProjectName}* where poss?
+          - Sid: SSMParams  # To read stack config variables from SSM
+            Effect: Allow
+            Action:
+              - 'ssm:GetParameters'
+            Resource:
+              - !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/*'
+          - Sid: S3PersonalizeAccess
+            Effect: Allow
+            Action:
+              - 's3:GetObject'
+              - 's3:PutObject'
+              - 's3:DeleteObject'
+              - 's3:ListBucket'
+            Resource:
+              - 'arn:aws:s3:::*Personalize*'  # Per PersonalizeFullAccess
+              - 'arn:aws:s3:::*personalize*'  # Per PersonalizeFullAccess
+          - Sid: S3ProjectAccess
+            Effect: Allow
+            Action:
+              - 's3:*'
+            Resource:
+              - !GetAtt StagingS3Bucket.Arn
+              - !Sub '${StagingS3Bucket.Arn}/*'
+          - Sid: RekognitionLabelling # For the extension exercise to label item categories via rek
+            Effect: Allow
+            Action:
+              - 'rekognition:DetectLabels'
+            Resource:
+              - '*'
 
 # SageMaker Execution Role
   SageMakerIamRole:
-    Type: "AWS::IAM::Role"
+    Type: 'AWS::IAM::Role'
     Properties:
       AssumeRolePolicyDocument:
-        Version: "2012-10-17"
+        Version: '2012-10-17'
         Statement:
           -
             Effect: Allow
             Principal:
               Service: sagemaker.amazonaws.com
             Action: sts:AssumeRole
-      Path: "/"
+      Path: '/'
       ManagedPolicyArns:
-        - "arn:aws:iam::aws:policy/AmazonSageMakerFullAccess"
-        - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
-        - "arn:aws:iam::aws:policy/service-role/AmazonPersonalizeFullAccess"
-        - "arn:aws:iam::aws:policy/IAMFullAccess"
-        - "arn:aws:iam::aws:policy/AWSLambdaFullAccess"
-      Policies:
-        - PolicyName: DDBAccess
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - 'dynamodb:PutItem'
-                  - 'dynamodb:Query'
-                  - 'dynamodb:UpdateTable'
-                  - 'dynamodb:UpdateItem'
-                  - 'dynamodb:BatchWriteItem'
-                  - 'dynamodb:GetItem'
-                  - 'dynamodb:Scan'
-                  - 'dynamodb:DeleteItem'
-                Resource:
-                  - !GetAtt TableItems.Arn
-                  - !Join ['', [!GetAtt TableItems.Arn, '/*']]
-                  - !GetAtt TableUsers.Arn
-                  - !Join ['', [!GetAtt TableUsers.Arn, '/*']]
+        - 'arn:aws:iam::aws:policy/AmazonSageMakerFullAccess'
+        - !Ref SageMakerExecutionPolicy
 
   # SageMaker notebook
   NotebookConfig:
-    Type: AWS::SageMaker::NotebookInstanceLifecycleConfig
+    Type: 'AWS::SageMaker::NotebookInstanceLifecycleConfig'
     Properties:
       OnStart:
         - Content:
+            # TODO: Remove the redundant env vars when notebooks transition to using SSM params instead
             Fn::Base64: !Sub |
               #!/bin/bash
               set -e
@@ -768,6 +866,13 @@ Resources:
           Properties:
             Stream: !GetAtt PostClickEventStream.Arn
             StartingPosition: TRIM_HORIZON
+  PostClickEventFunctionParam:  # Expose the PostClickEvent function address to SageMaker notebooks:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: !Sub 'ARN of the PostClickEvent Lambda for "${AWS::StackName}" stack'
+      Name: !Sub '/${ProjectName}/PostClickEventLambdaArn'
+      Type: String
+      Value: !GetAtt PostClickEventFunction.Arn
   UserEventIdentityPool:
     Type: AWS::Cognito::IdentityPool
     Properties:
@@ -890,6 +995,9 @@ Outputs:
   PostClickEventArn:
     Description: "PostClickEvent_arn"
     Value: !GetAtt PostClickEventFunction.Arn
+  SageMakerExecutionPolicy:
+    Description: IAM Policy defining permissions for SageMaker setup notebooks
+    Value: !Ref SageMakerExecutionPolicy
   WebUIStreamName:
     Description: "WebUI Config kinesis.StreamName"
     Value: !Ref PostClickEventStream
