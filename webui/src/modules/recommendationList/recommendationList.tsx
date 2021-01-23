@@ -106,6 +106,7 @@ export class RecommendationList extends React.Component<
         this.props.match.params.searchid &&
         this.props.match.params.searchid.length > 0
       ) {
+        getUrl = config.api.SearchUrl;
         getQuery.q = this.props.match.params.searchid;
         if (this.props.userId) {
           getQuery.u = this.props.userId;
