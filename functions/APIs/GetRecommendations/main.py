@@ -64,7 +64,7 @@ def handler(event, context):
             filter_values = {}
             for param in filter_spec["params"]:
                 try:
-                    filter_values[param["id"]] = query_params[param["id"]]
+                    filter_values[param["id"]] = json.dumps(query_params[param["id"]])
                 except:
                     warnings.append(
                         f"Filter '{filter_name}' missing required parameter '{param['name']}' was ignored."
