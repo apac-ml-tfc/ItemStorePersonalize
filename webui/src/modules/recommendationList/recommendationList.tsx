@@ -1,5 +1,6 @@
+import axios from "axios";
 import React from "react";
-import { Alert } from "react-bootstrap";
+import { Alert, DropdownButton, Form, FormControl, MenuItem } from "react-bootstrap";
 import ProductRow from "../storeItem/storeItem";
 import { Product } from "../storeItem/storeItem";
 import getConfig from "../../config";
@@ -26,12 +27,41 @@ export interface RecommendationListProps {
   productId?: string | undefined;
 }
 
+export interface FilterParameter {
+  name: string;
+  id: string;
+  paramType: string | string[];
+}
+
+export interface FilterSpecification {
+  name: string
+  params: FilterParameter[];
+}
+
 interface RecommendationListState {
+  availableFilters: FilterSpecification[];
+  activeFilter: FilterSpecification | null;
+  filterParams: { [id: string]: string };
   userId?: string | undefined;
   isLoading: boolean;
   items: Product[];
   mode: string;
   warning: string | undefined;
+}
+
+function debounce<T extends (...args: any[]) => any>(
+  fn: T,
+  delay: number
+) {
+  let timeout: ReturnType<typeof setTimeout>;
+  return function(this: any, ...args: Parameters<T>): ReturnType<T> {
+    let result: any;
+    clearTimeout(timeout);
+    timeout = setTimeout(() => {
+      result = fn.apply(this, args);
+    }, delay);
+    return result;
+  };
 }
 
 export class RecommendationList extends React.Component<
@@ -44,7 +74,13 @@ export class RecommendationList extends React.Component<
   ) {
     super(props);
 
+    this.onFilterSelect = this.onFilterSelect.bind(this);
+    this.onFilterChanged = debounce(this.onFilterChanged, 300).bind(this);
+
     this.state = {
+      availableFilters: [],
+      activeFilter: null,
+      filterParams: {},
       userId: props.userId,
       isLoading: true,
       items: [],
@@ -63,27 +99,25 @@ export class RecommendationList extends React.Component<
     const config = await configP;
 
     let getUrl = config.api.GetListUrl;
+    const getQuery: { [param: string]: string } = {};
 
     if (this.props.mode === RecommendationMode.Normal) {
       if (
         this.props.match.params.searchid &&
         this.props.match.params.searchid.length > 0
       ) {
-        getUrl = config.api.SearchUrl + "?";
-
-        let queryString = "";
-
-        queryString += "q=" + this.props.match.params.searchid;
-
+        getQuery.q = this.props.match.params.searchid;
         if (this.props.userId) {
-          if (queryString !== "") queryString += "&";
-
-          queryString += "u=" + this.props.userId;
+          getQuery.u = this.props.userId;
         }
-
-        if (queryString !== "") getUrl = getUrl + queryString;
       } else {
         if (this.props.userId != null) getUrl += this.props.userId;
+        if (this.state.activeFilter) {
+          getQuery.filter = this.state.activeFilter.name;
+          this.state.activeFilter.params.forEach((paramspec) => {
+            getQuery[paramspec.id] = this.state.filterParams[paramspec.id]
+          });
+        }
       }
     } else {
       fetchLess = true;
@@ -97,15 +131,23 @@ export class RecommendationList extends React.Component<
     }
 
     // Get the data
-    fetch(getUrl)
-      .then(response => response.json())
-      .then(data => {
+    axios.get(getUrl, { params: getQuery })
+      .then(({ data }) => {
+        console.log(data);
         const results = data?.results || [];
-        this.setState({
+        const availableFilters = (data?.filtersAvailable || []) as FilterSpecification[];
+        const stateUpdates: any = {
+          availableFilters,
           isLoading: false,
           items: fetchLess ? results.slice(0, 10) : results.slice(),
           warning: data?.warning,
-        });
+        };
+        if (this.state.activeFilter && availableFilters.indexOf(this.state.activeFilter) < 0) {
+          stateUpdates.activeFilter = availableFilters.find(
+            f => f.name === (this.state.activeFilter as FilterSpecification).name
+          ) || null;
+        }
+        this.setState(stateUpdates);
       });
   }
 
@@ -192,12 +234,88 @@ export class RecommendationList extends React.Component<
     return productcat;
   };
 
+  onFilterSelect(key: any) {
+    const activeFilter = key >= 0 ? this.state.availableFilters[key] : null;
+    const stateUpdates: any = {
+      activeFilter,
+      isLoading: true,
+    }
+    if (activeFilter) {
+      const newParams = { ...this.state.filterParams };
+      let anyParamUpdates = false;
+      activeFilter.params.forEach(spec => {
+        if (Array.isArray(spec.paramType) && spec.paramType.length) {
+          const defaultValue = spec.paramType[0];
+          if (newParams[spec.id] !== defaultValue) {
+            newParams[spec.id] = defaultValue;
+            anyParamUpdates = true;
+          }
+        }
+      });
+      if (anyParamUpdates) {
+        stateUpdates.filterParams = newParams;
+      }
+    }
+    this.setState(stateUpdates);
+    this.onFilterChanged();
+  }
+
+  onFilterChanged() {
+    // This fn gets debounced by the constructor
+    this._loadAsyncData();
+  }
+
+  onFilterParamUpdate(key: string, val: string) {
+    const newParams = { ...this.state.filterParams };
+    newParams[key] = val;
+    this.setState({
+      filterParams: newParams,
+      isLoading: true,
+    });
+    this.onFilterChanged();
+  }
+
   render() {
     let currentClassName;
     if (this.props.mode === RecommendationMode.Normal) {
       currentClassName = "recommend";
       return (
         <div className={currentClassName}>
+          {
+            this.state.availableFilters.length
+              ? <Form inline className="filter-form">
+                <DropdownButton className="filter-selector" id="filter-selector" title={
+                  `Filter: ${this.state.activeFilter ? this.state.activeFilter.name : "None"}`
+                }>
+                  <MenuItem eventKey={-1} active onSelect={this.onFilterSelect}>None</MenuItem>
+                  {this.state.availableFilters.map((spec, ix) => (
+                    <MenuItem eventKey={ix} onSelect={this.onFilterSelect}>{spec.name}</MenuItem>
+                  ))}
+                </DropdownButton>
+                {
+                  this.state.activeFilter
+                    ? this.state.activeFilter.params.map(paramspec => (
+                      (Array.isArray(paramspec.paramType) && paramspec.paramType.length)
+                        ? <DropdownButton className="filter-param filter-param-dropdown" id="filter-selector"
+                            title={this.state.filterParams[paramspec.id]}
+                          >
+                            {paramspec.paramType.map((opt, ix) => (
+                              <MenuItem eventKey={ix} onSelect={(ix: any) => this.onFilterParamUpdate(paramspec.id, paramspec.paramType[ix])}>{opt}</MenuItem>
+                            ))}
+                          </DropdownButton>
+                        : <FormControl
+                            className="filter-param filter-param-text"
+                            type="text"
+                            value={this.state.filterParams[paramspec.id]}
+                            placeholder={paramspec.name}
+                            onChange={(e) => this.onFilterParamUpdate(paramspec.id, (e.target as any).value)}
+                          />
+                    ))
+                    : null
+                }
+              </Form>
+              : null
+          }
           {
             this.state.warning
               ? <Alert bsStyle="warning">
